@@ -24,7 +24,7 @@ locals {
 }
 
 module "lambda" {
-    source					= "../../module-lambda/src"
+    source					= "github.com/breno-hof/module-lambda//src?ref=1.0.0"
 
     is_architecture_x86_64 	= true
 
