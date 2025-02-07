@@ -1,9 +1,56 @@
+resource "local_file" "copy_files" {
+	for_each				= var.should_create_s3 ? fileset(var.source_path, "**") : null
+
+	filename				= "${local.deployment_package_dir}/${each.value}"
+	content					= file("${var.source_path}/${each.value}")
+}
+
+# cd ${local.deployment_package_dir} && python -m venv venv && . venv/bin/activate && pip install -r requirements.txt && cp -r venv/lib/${var.runtime}/site-packages/* .
+
+resource "null_resource" "check_dependency_file" {
+	count					= local.runtime != "unknown" && var.should_create_s3 ? 1 : 0
+
+	triggers = { always_run = timestamp() }
+
+	provisioner "local-exec" {
+		command 			= <<EOT
+			case "${local.runtime}" in
+				"nodejs")
+					echo "Instalando dependências do Node.js..."
+					cd ${local.deployment_package_dir} && npm install
+					;;
+				"python")
+					echo "Instalando dependências do Python..."
+					cd ${local.deployment_package_dir} && pip install --target=. -r requirements.txt
+					;;
+				"java")
+					echo "Instalando dependências do Java..."
+					cd ${local.deployment_package_dir} && mvn clean install
+					;;
+				*)
+					echo "Nenhum runtime suportado detectado."
+					exit 1
+					;;
+			esac
+		EOT
+	}
+
+	depends_on 				= [ 
+		local_file.copy_files 
+	]
+}
+
 data "archive_file" "this" {
 	count 					= var.should_create_s3 ? 1 : 0
 	type 					= "zip"
 
-	source_dir 				= "${var.source_path}"
-	output_path 			= "${var.lambda_name}.zip"
+	source_dir 				= "${local.deployment_package_dir}"
+	output_path 			= "${local.deployment_package_dir}/${var.lambda_name}.zip"
+
+	depends_on = [
+		local_file.copy_files,
+		null_resource.check_dependency_file
+	]
 }
 
 resource "aws_s3_bucket" "this" {
@@ -20,7 +67,13 @@ resource "aws_s3_object" "this" {
 	key    					= "${var.lambda_name}.zip"
 	source 					= data.archive_file.this[0].output_path
 
-	etag 					= filemd5(data.archive_file.this[0].output_path)
+	etag 					= data.archive_file.this[0].output_base64sha256
+
+	depends_on = [ 
+		local_file.copy_files,
+		null_resource.check_dependency_file,
+		data.archive_file.this
+	]
 }
 
 resource "aws_iam_role" "this" {
@@ -155,4 +208,20 @@ resource "aws_lambda_function" "this" {
 			subnet_ids					= var.vpc_config.subnet_ids
 		}
 	}
+}
+
+resource "null_resource" "cleanup_deployment_package" {
+	count								= var.should_create_s3 ? 1 : 0
+	
+	provisioner "local-exec" {
+		command 						= "rm -rf ${local.deployment_package_dir}"
+	}
+	
+	triggers = { always_run = timestamp() }
+
+	depends_on 							= [
+		data.archive_file.this,
+		aws_s3_object.this,
+		aws_lambda_function.this # Se estiver criando uma Lambda, garanta que ela foi provisionada
+	]
 }
