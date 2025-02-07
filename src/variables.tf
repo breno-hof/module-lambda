@@ -14,6 +14,23 @@ variable "description" {
 	default 						= null
 }
 
+variable "source_code_hash" {
+	description 					= ""
+	type							= string
+	default 						= null
+}
+
+# variable "source_path" {
+# 	description 					= "Path of source files of your Lambda Function."
+# 	type							= string
+# }
+
+# variable "output_path" {
+# 	description 					= "Output path of your Lambda Function file."
+# 	type							= string
+# 	default 						= "./lambda"
+# }
+
 variable "code_signing_config_arn" {
 	description 					= "(Optional) To enable code signing for this function, specify the ARN of a code-signing configuration. A code-signing configuration includes a set of signing profiles, which define the trusted publishers for this function."
 	type 							= string
@@ -46,7 +63,7 @@ variable "is_architecture_x86_64" {
 
 variable "environment_variables" {
 	description						= "(Optional) Map of environment variables that are accessible from the function code during execution. If provided at least one key must be present."
-	type							= optional(map())
+	type							= map(string)
 	default							= null
 }
 
@@ -138,7 +155,7 @@ variable "timeout" {
 
 variable "tags" {
 	description 					= "(Optional) Map of tags to assign to the object."
-	type							= map()
+	type							= map(string)
 	default							= {}
 }
 

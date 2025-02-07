@@ -1,3 +1,15 @@
+# resource "null_resource" "zip_lambda" {
+# 	count								= var.output_path != null && !local.is_image_uri_set ? 1 : 0
+
+# 	provisioner "local-exec" {
+# 		command 						= "zip -r ${var.output_path}.zip ${var.source_path}"
+# 	}
+
+# 	triggers = {
+# 		always_run 						= "${timestamp()}"
+# 	}
+# }
+
 resource "aws_lambda_function" "this" {
 	function_name						= var.lambda_name
 	description							= var.description
@@ -13,7 +25,7 @@ resource "aws_lambda_function" "this" {
 	s3_bucket							= local.is_s3_bucket_set ? var.s3_bucket : null
 	s3_key								= local.is_s3_bucket_set ? var.s3_key : null
 
-	source_code_hash					= local.is_filename_set ? filebase64sha256(var.filename) : (local.is_image_uri_set ? filebase64sha256(file(var.s3_key)) : null) 
+	source_code_hash					= var.source_code_hash
 
 	kms_key_arn							= var.kms_key_arn
 
