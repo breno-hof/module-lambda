@@ -6,6 +6,7 @@ variable "lambda_name" {
 variable "role_arn" {
 	description 					= "(Required) Amazon Resource Name (ARN) of the function's execution role. The role provides the function's identity and access to AWS services and resources."
 	type 							= string
+	default 						= null
 }
 
 variable "description" {
@@ -20,16 +21,24 @@ variable "source_code_hash" {
 	default 						= null
 }
 
-# variable "source_path" {
-# 	description 					= "Path of source files of your Lambda Function."
-# 	type							= string
-# }
+variable "source_path" {
+	description 					= "Source path of your Lambda Function file."
+	type							= string
+	default							= "."
+}
 
-# variable "output_path" {
-# 	description 					= "Output path of your Lambda Function file."
-# 	type							= string
-# 	default 						= "./lambda"
-# }
+variable "should_create_role" {
+	description 					= "(Optional) Wether create role or not. Default true"
+	type							= bool
+	default 						= true
+}
+
+
+variable "should_create_s3" {
+	description 					= "(Optional) Wether create s3 bucket or not. Default true"
+	type							= bool
+	default 						= true
+}
 
 variable "code_signing_config_arn" {
 	description 					= "(Optional) To enable code signing for this function, specify the ARN of a code-signing configuration. A code-signing configuration includes a set of signing profiles, which define the trusted publishers for this function."

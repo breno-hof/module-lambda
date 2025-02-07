@@ -1,19 +1,56 @@
-# resource "null_resource" "zip_lambda" {
-# 	count								= var.output_path != null && !local.is_image_uri_set ? 1 : 0
+data "archive_file" "this" {
+	count 					= var.should_create_s3 ? 1 : 0
+	type 					= "zip"
 
-# 	provisioner "local-exec" {
-# 		command 						= "zip -r ${var.output_path}.zip ${var.source_path}"
-# 	}
+	source_dir 				= "${var.source_path}"
+	output_path 			= "${var.lambda_name}.zip"
+}
 
-# 	triggers = {
-# 		always_run 						= "${timestamp()}"
-# 	}
-# }
+resource "aws_s3_bucket" "this" {
+	count 					= var.should_create_s3 ? 1 : 0
+
+	bucket					= "${var.lambda_name}-lambda-bucket"
+}
+
+resource "aws_s3_object" "this" {
+	count 					= var.should_create_s3 ? 1 : 0
+
+	bucket 					= aws_s3_bucket.this[0].id
+
+	key    					= "${var.lambda_name}.zip"
+	source 					= data.archive_file.this[0].output_path
+
+	etag 					= filemd5(data.archive_file.this[0].output_path)
+}
+
+resource "aws_iam_role" "this" {
+	count 					= var.should_create_role ? 1 : 0
+
+	name					= "${var.lambda_name}-lambda-role"
+
+	assume_role_policy		= jsonencode({
+		Version 			= "2012-10-17"
+		Statement 			= [{
+			Action 			= "sts:AssumeRole"
+			Effect 			= "Allow"
+			Principal 		= {
+				Service 	= "lambda.amazonaws.com"
+			}
+		}]
+  	})
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_policy" {
+	count = var.should_create_role ? 1 : 0
+
+	role       				= aws_iam_role.this[0].name
+	policy_arn 				= "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
 
 resource "aws_lambda_function" "this" {
 	function_name						= var.lambda_name
 	description							= var.description
-	role								= var.role_arn
+	role								= var.should_create_role ? aws_iam_role.this[0].arn : var.role_arn
 	handler								= var.handler_entrypoint
 
 	architectures						= var.is_architecture_x86_64 ? ["x86_64"] : ["arm64"]
@@ -22,10 +59,10 @@ resource "aws_lambda_function" "this" {
 
 	filename							= local.is_filename_set ? var.filename : null
 	image_uri							= local.is_image_uri_set ? var.image_uri : null
-	s3_bucket							= local.is_s3_bucket_set ? var.s3_bucket : null
-	s3_key								= local.is_s3_bucket_set ? var.s3_key : null
+	s3_bucket							= local.is_s3_bucket_set ? var.s3_bucket : (var.should_create_s3 ? aws_s3_bucket.this[0].id : null)
+	s3_key								= local.is_s3_bucket_set ? var.s3_key : (var.should_create_s3 ? aws_s3_object.this[0].key : null)
 
-	source_code_hash					= var.source_code_hash
+	source_code_hash					= var.should_create_s3 ? data.archive_file.this[0].output_base64sha256 : var.source_code_hash
 
 	kms_key_arn							= var.kms_key_arn
 
